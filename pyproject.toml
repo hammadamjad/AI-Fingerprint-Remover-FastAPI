@@ -1,0 +1,19 @@
+[project]
+name = "ai-audio-fingerprint-remover"
+version = "0.1.0"
+description = "FastAPI backend for AI Audio Fingerprint Remover"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "librosa>=0.10.0",
+    "soundfile>=0.12.1",
+    "mutagen>=1.45.1",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "python-multipart>=0.0.6",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
