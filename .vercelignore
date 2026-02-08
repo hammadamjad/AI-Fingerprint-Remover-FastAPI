@@ -1,0 +1,34 @@
+# Vercel Ignore File
+# Exclude heavy local environments
+venv/
+.env
+.venv/
+
+# Exclude Git
+.git/
+.github/
+
+# Exclude tests and backups
+test_*.py
+*.backup_*
+quick_*.py
+watermark_comparison.py
+watermark_effectiveness_tester.py
+advanced_watermark_analysis.py
+suno_analysis.txt
+ENHANCEMENT_SUMMARY.md
+CLAUDE.md
+API.md
+
+# Exclude temporary data
+temp_uploads/
+temp_outputs/
+__pycache__/
+*.pyc
+
+# Exclude large test assets
+test_audio_async.wav
+file_example_WAV_1MG.html
+
+# Exclude VS Code noise
+.vscode/
