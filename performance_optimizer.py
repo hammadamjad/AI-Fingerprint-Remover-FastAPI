@@ -80,20 +80,36 @@ class PerformanceOptimizer:
     
     def process_audio_parallel(self, audio: np.ndarray, sr: int, 
                              processing_func: Callable, 
-                             func_args: Tuple = ()) -> np.ndarray:
-        """Process audio in parallel chunks with optimal performance."""
+                             func_args: Tuple = (),
+                             progress_callback: Optional[Callable[[float, str], None]] = None) -> np.ndarray:
+        """
+        Process audio in parallel chunks with optimal performance.
+        
+        Args:
+            audio: Input audio array
+            sr: Sample rate
+            processing_func: Function to process each chunk
+            func_args: Additional arguments for processing_func
+            progress_callback: Optional callback(progress_0_to_1, status_message)
+        """
         
         if len(audio) <= self.config.chunk_size:
             # Small audio, process directly
-            return processing_func(audio, sr, *func_args)
+            if progress_callback:
+                progress_callback(0.5, "Processing single chunk...")
+            result = processing_func(audio, sr, *func_args)
+            if progress_callback:
+                progress_callback(1.0, "Processing complete")
+            return result
         
         # Split into chunks
         chunks = self._split_into_chunks(audio)
+        total_chunks = len(chunks)
         
         if self.config.use_multiprocessing and len(chunks) > 1:
-            return self._process_chunks_multiprocessing(chunks, sr, processing_func, func_args)
+            return self._process_chunks_multiprocessing(chunks, sr, processing_func, func_args, progress_callback)
         else:
-            return self._process_chunks_sequential(chunks, sr, processing_func, func_args)
+            return self._process_chunks_sequential(chunks, sr, processing_func, func_args, progress_callback)
     
     def _split_into_chunks(self, audio: np.ndarray) -> List[Tuple[int, np.ndarray]]:
         """Split audio into overlapping chunks for parallel processing."""
@@ -117,11 +133,15 @@ class PerformanceOptimizer:
     
     def _process_chunks_multiprocessing(self, chunks: List[Tuple[int, np.ndarray]], 
                                       sr: int, processing_func: Callable, 
-                                      func_args: Tuple) -> np.ndarray:
+                                      func_args: Tuple,
+                                      progress_callback: Optional[Callable[[float, str], None]] = None) -> np.ndarray:
         """Process chunks using multiprocessing."""
         
         # Create partial function with fixed arguments
         worker_func = partial(self._chunk_worker, sr=sr, func=processing_func, args=func_args)
+        
+        total_chunks = len(chunks)
+        completed_chunks = 0
         
         # Process chunks in parallel
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.config.max_workers) as executor:
@@ -140,15 +160,25 @@ class PerformanceOptimizer:
                     logger.error(f"Chunk {chunk_idx} processing failed: {e}")
                     # Use original chunk as fallback
                     processed_chunks[chunk_idx] = (chunks[chunk_idx][0], chunks[chunk_idx][1])
+                
+                completed_chunks += 1
+                if progress_callback:
+                    progress = completed_chunks / total_chunks
+                    progress_callback(progress, f"Processed chunk {completed_chunks}/{total_chunks}")
         
         # Reconstruct audio from processed chunks
+        if progress_callback:
+            progress_callback(1.0, "Reconstructing audio...")
+            
         return self._reconstruct_from_chunks(processed_chunks)
     
     def _process_chunks_sequential(self, chunks: List[Tuple[int, np.ndarray]], 
                                  sr: int, processing_func: Callable, 
-                                 func_args: Tuple) -> np.ndarray:
+                                 func_args: Tuple,
+                                 progress_callback: Optional[Callable[[float, str], None]] = None) -> np.ndarray:
         """Process chunks sequentially with memory optimization."""
         processed_chunks = []
+        total_chunks = len(chunks)
         
         for i, (start_pos, chunk_audio) in enumerate(chunks):
             try:
@@ -163,10 +193,17 @@ class PerformanceOptimizer:
                 
                 logger.debug(f"Processed chunk {i+1}/{len(chunks)}")
                 
+                if progress_callback:
+                    progress = (i + 1) / total_chunks
+                    progress_callback(progress, f"Processed chunk {i+1}/{total_chunks}")
+                
             except Exception as e:
                 logger.error(f"Chunk {i} processing failed: {e}")
                 processed_chunks.append((start_pos, chunk_audio))  # Fallback
         
+        if progress_callback:
+            progress_callback(1.0, "Reconstructing audio...")
+            
         return self._reconstruct_from_chunks(processed_chunks)
     
     @staticmethod

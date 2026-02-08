@@ -24,6 +24,13 @@ try:
 except ImportError as e:
     logging.warning(f"Could not import advanced modules: {e}")
     # Fallback to basic functionality
+    @dataclass
+    class PerformanceConfig:
+        use_gpu: bool = False
+
+    class PerformanceOptimizer:
+        def __init__(self, config): pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +105,8 @@ class IntegratedWatermarkRemover:
                     processing_level: str = 'balanced',
                     enable_advanced_detection: bool = True,
                     enable_performance_optimization: bool = True,
-                    generate_report: bool = False) -> ProcessingStats:
+                    generate_report: bool = False,
+                    progress_callback: Optional[Any] = None) -> ProcessingStats:
         """
         Process an audio file with next-generation watermark removal.
         
@@ -109,10 +117,14 @@ class IntegratedWatermarkRemover:
             enable_advanced_detection: Use advanced detection algorithms
             enable_performance_optimization: Use performance optimizations
             generate_report: Generate detailed processing report
+            progress_callback: Optional callback(progress_0_to_1, status_message)
         
         Returns:
             ProcessingStats object with comprehensive statistics
         """
+        if progress_callback:
+            progress_callback(0.00, "Starting processing...")
+            
         start_time = time.time()
         
         # Validate inputs
@@ -125,6 +137,9 @@ class IntegratedWatermarkRemover:
         logger.info(f"Starting integrated processing: {input_path}")
         logger.info(f"Level: {processing_level}, File size: {file_size_mb:.1f}MB")
         
+        if progress_callback:
+            progress_callback(0.05, "Loading audio...")
+            
         # Load audio
         try:
             audio, sr = sf.read(input_path)
@@ -155,6 +170,9 @@ class IntegratedWatermarkRemover:
         
         try:
             # Phase 1: Advanced Detection
+            if progress_callback:
+                progress_callback(0.10, "Analyzing audio for watermarks...")
+                
             detection_start = time.time()
             
             if enable_advanced_detection and self.systems_available:
@@ -164,15 +182,29 @@ class IntegratedWatermarkRemover:
             
             self.stats.detection_time = time.time() - detection_start
             
+            if progress_callback:
+                progress_callback(0.30, f"Detection complete. Found {len(detections.get('suno', []))} patterns.")
+            
             # Phase 2: Removal Processing
             removal_start = time.time()
             
+            # Helper to map removal progress (0-1) to overall progress (0.30-0.80)
+            def removal_progress_wrapper(p, msg):
+                if progress_callback:
+                    overall_p = 0.30 + (p * 0.50)
+                    progress_callback(overall_p, f"Removing watermarks: {msg}")
+            
             if enable_performance_optimization and self.systems_available:
-                processed_audio = self._run_optimized_removal(audio, sr, detections, processing_level)
+                processed_audio = self._run_optimized_removal(audio, sr, detections, processing_level, removal_progress_wrapper)
             else:
+                if progress_callback:
+                    progress_callback(0.50, "Running basic removal...")
                 processed_audio = self._run_basic_removal(audio, sr, detections, processing_level)
             
             self.stats.removal_time = time.time() - removal_start
+            
+            if progress_callback:
+                progress_callback(0.80, "Watermarks removed. Optimizing quality...")
             
             # Phase 3: Quality Validation
             optimization_start = time.time()
@@ -180,6 +212,9 @@ class IntegratedWatermarkRemover:
             processed_audio = self._validate_and_optimize_quality(processed_audio, audio, sr, processing_level)
             
             self.stats.optimization_time = time.time() - optimization_start
+            
+            if progress_callback:
+                progress_callback(0.90, "Saving output file...")
             
             # Save output
             sf.write(output_path, processed_audio, sr)
@@ -198,6 +233,9 @@ class IntegratedWatermarkRemover:
             if generate_report:
                 self._generate_processing_report(input_path, output_path)
             
+            if progress_callback:
+                progress_callback(1.00, "Processing complete!")
+                
             return self.stats
             
         except Exception as e:
@@ -264,7 +302,8 @@ class IntegratedWatermarkRemover:
     
     def _run_optimized_removal(self, audio: np.ndarray, sr: int, 
                              detections: Dict[str, List], 
-                             processing_level: str) -> np.ndarray:
+                             processing_level: str,
+                             progress_callback: Optional[Any] = None) -> np.ndarray:
         """Run optimized removal with performance enhancements."""
         
         def combined_removal_func(audio_chunk, sr):
@@ -289,7 +328,7 @@ class IntegratedWatermarkRemover:
         
         # Use performance optimizer for parallel processing
         return self.performance_optimizer.process_audio_parallel(
-            audio, sr, combined_removal_func
+            audio, sr, combined_removal_func, progress_callback=progress_callback
         )
     
     def _run_basic_removal(self, audio: np.ndarray, sr: int, 
