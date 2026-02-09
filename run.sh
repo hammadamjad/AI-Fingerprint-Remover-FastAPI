@@ -3,19 +3,34 @@
 # Configuration
 VENV_DIR="venv"
 MAIN_FILE="main.py"
+REQ_FILE="requirements.txt"
 
 echo "🚀 Starting FastAPI Backend Locally..."
 
-# Check if venv exists
+# Create venv if it doesn't exist
 if [ ! -d "$VENV_DIR" ]; then
-    echo "❌ Error: Virtual environment '$VENV_DIR' not found."
-    echo "Please create it first (e.g., python3 -m venv venv && pip install -r requirements.txt)"
-    exit 1
+    echo "📦 Virtual environment not found. Creating one..."
+    python3 -m venv "$VENV_DIR"
+    
+    if [ $? -ne 0 ]; then
+        echo "❌ Error: Failed to create virtual environment."
+        exit 1
+    fi
+    
+    echo "🔌 Activating virtual environment..."
+    source "$VENV_DIR/bin/activate"
+    
+    if [ -f "$REQ_FILE" ]; then
+        echo "� Installing dependencies from $REQ_FILE..."
+        pip install --upgrade pip
+        pip install -r "$REQ_FILE"
+    else
+        echo "⚠️ Warning: $REQ_FILE not found. Skipping dependency installation."
+    fi
+else
+    echo "�🔌 Activating virtual environment..."
+    source "$VENV_DIR/bin/activate"
 fi
-
-# Activate virtual environment
-echo "🔌 Activating virtual environment..."
-source "$VENV_DIR/bin/activate"
 
 # Verify activation
 if [ $? -ne 0 ]; then
@@ -26,5 +41,3 @@ fi
 # Run the server
 echo "🏃 Starting FastAPI server..."
 exec python3 "$MAIN_FILE"
-
-# Note: main.py uses uvicorn.run(app, host="127.0.0.1", port=8000)
